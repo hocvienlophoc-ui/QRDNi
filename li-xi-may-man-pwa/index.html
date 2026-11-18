@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#a91525">
+  <meta name="description" content="Vòng quay lì xì may mắn ngày Tết.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Lì xì may mắn">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+  <title>Lì xì may mắn</title>
+  <style>
+    :root { color-scheme: light; --red:#a91525; --deep:#760d19; --gold:#f4c75e; --cream:#fff7e7; }
+    * { box-sizing:border-box; }
+    html,body { margin:0; min-height:100%; }
+    body {
+      min-height:100vh; min-height:100svh; padding: max(14px, env(safe-area-inset-top)) 14px max(20px, env(safe-area-inset-bottom));
+      display:flex; justify-content:center; align-items:center; overflow-x:hidden;
+      font-family: ui-rounded, "Arial Rounded MT Bold", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color:#5a241d;
+      background:
+        radial-gradient(circle at 12% 10%, rgba(255,225,147,.45) 0 2px, transparent 3px),
+        radial-gradient(circle at 87% 22%, rgba(255,225,147,.5) 0 2px, transparent 3px),
+        linear-gradient(145deg,#7f101d,#bd2530 48%,#7e101b);
+    }
+    .app { width:min(100%,650px); text-align:center; }
+    .heading { color:#fff4d6; margin:0 0 10px; text-shadow:0 2px 0 #710d19,0 4px 12px #4b0710; }
+    .heading h1 { font-size:clamp(27px,7vw,43px); margin:0; letter-spacing:.3px; }
+    .heading p { margin:5px 0 0; color:#ffe7a9; font-size:14px; }
+    .wheel-card {
+      position:relative; margin:0 auto; width:min(94vw,590px); aspect-ratio:1;
+      display:grid; place-items:center; border-radius:50%;
+      filter: drop-shadow(0 14px 20px rgba(35,0,0,.38));
+      -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+      cursor:pointer; user-select:none;
+    }
+    canvas { display:block; width:100%; height:100%; }
+    .pointer {
+      position:absolute; z-index:3; top:-1.5%; left:50%; transform:translateX(-50%);
+      width:0;height:0;border-left:clamp(15px,4vw,23px) solid transparent;
+      border-right:clamp(15px,4vw,23px) solid transparent;
+      border-top:clamp(31px,7vw,43px) solid #fff2bd;
+      filter:drop-shadow(0 3px 2px rgba(74,18,7,.65));
+      pointer-events:none;
+    }
+    .tap-hint { color:#ffe8b0; font-weight:700; font-size:14px; margin:9px 0 0; }
+    .result {
+      margin:14px auto 0; max-width:500px; min-height:76px; padding:13px 18px;
+      border:2px solid #f5d27b; border-radius:18px;
+      background:linear-gradient(135deg,#fff9e9,#ffe7b1);
+      box-shadow:0 7px 18px rgba(47,0,0,.2);
+    }
+    .result-label { font-size:12px; font-weight:800; color:#9a3b27; letter-spacing:1.6px; }
+    #resultText { font-size:clamp(23px,6vw,32px); font-weight:900; color:#a31524; margin-top:3px; }
+    #resultSub { font-size:12px; color:#8c5945; margin-top:3px; }
+    .footer { color:#ffe7b0; font-size:11px; margin:11px 0 0; opacity:.9; }
+    .wheel-card:focus-visible { outline:4px solid #fff2bd; outline-offset:5px; }
+    @media (max-width:390px) { .wheel-card{width:min(96vw,520px)} .heading p{font-size:12px} }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior:auto !important; } }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="heading">
+      <h1>🌸 Lì xì may mắn 🌸</h1>
+      <p>Chạm vào vòng quay để đón lộc đầu năm</p>
+    </header>
+
+    <div class="wheel-card" id="wheelTap" role="button" tabindex="0" aria-label="Chạm để quay vòng quay lì xì">
+      <div class="pointer"></div>
+      <canvas id="wheel" aria-label="Vòng quay gồm 23 phần thưởng"></canvas>
+    </div>
+    <div class="tap-hint">☝️ CHẠM VÀO VÒNG QUAY ĐỂ QUAY ☝️</div>
+
+    <section class="result" aria-live="polite">
+      <div class="result-label">LỘC MAY MẮN CỦA BẠN</div>
+      <div id="resultText">Chúc bạn năm mới an khang!</div>
+      <div id="resultSub">Mỗi vòng quay là một niềm vui 🌼</div>
+    </section>
+    <p class="footer">Trò chơi giải trí · Phần thưởng chỉ mang tính mô phỏng</p>
+  </main>
+
+<script>
+(() => {
+  const prizes = [
+    "1K","100K","2K","10K","LỜI CHÚC","200K","5K","1K","20K","500K",
+    "2K","LỜI CHÚC","50K","10K","1K","5K","LỜI CHÚC","20K","2K","10K","50K","5K","20K"
+  ];
+  const colors = ["#fbe7a8","#f5bd58","#fff0c6","#edaa4c","#f9d982","#e98f43"];
+  const canvas = document.getElementById("wheel");
+  const ctx = canvas.getContext("2d");
+  const tap = document.getElementById("wheelTap");
+  const resultText = document.getElementById("resultText");
+  const resultSub = document.getElementById("resultSub");
+  const count = prizes.length, arc = Math.PI * 2 / count;
+  let rotation = 0, spinning = false, dpr = 1, size = 600;
+
+  function resize() {
+    const rect = tap.getBoundingClientRect();
+    size = Math.max(300, Math.round(rect.width));
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(size*dpr);
+    canvas.height = Math.round(size*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    draw();
+  }
+  function flower(x,y,r,alpha=1) {
+    ctx.save(); ctx.translate(x,y); ctx.globalAlpha=alpha;
+    for(let i=0;i<5;i++){
+      ctx.rotate(Math.PI*2/5);
+      ctx.beginPath(); ctx.ellipse(0,-r*.58,r*.34,r*.57,0,0,Math.PI*2);
+      ctx.fillStyle="#fff0ee"; ctx.fill(); ctx.lineWidth=1.2; ctx.strokeStyle="#e98c9a"; ctx.stroke();
+    }
+    ctx.beginPath();ctx.arc(0,0,r*.19,0,Math.PI*2);ctx.fillStyle="#f6bd42";ctx.fill();
+    ctx.restore();
+  }
+  function draw() {
+    const s=size, c=s/2, radius=s*.465;
+    ctx.clearRect(0,0,s,s);
+    // outer gold rim
+    ctx.beginPath();ctx.arc(c,c,radius+s*.018,0,Math.PI*2);
+    ctx.fillStyle="#f7d77d";ctx.fill();
+    ctx.beginPath();ctx.arc(c,c,radius+s*.004,0,Math.PI*2);
+    ctx.fillStyle="#8f1821";ctx.fill();
+    // wedges: pointer is at 12 o'clock
+    for(let i=0;i<count;i++){
+      const start=-Math.PI/2 + i*arc + rotation;
+      const end=start+arc;
+      ctx.beginPath();ctx.moveTo(c,c);ctx.arc(c,c,radius,start,end);ctx.closePath();
+      ctx.fillStyle=colors[i%colors.length];ctx.fill();
+      ctx.strokeStyle="#a85a2a";ctx.lineWidth=1.5;ctx.stroke();
+
+      const mid=start+arc/2;
+      const tx=c+Math.cos(mid)*radius*.66;
+      const ty=c+Math.sin(mid)*radius*.66;
+      ctx.save();ctx.translate(tx,ty);
+      // Horizontal labels for easy reading, even on the lower half.
+      let label=prizes[i];
+      const fontSize = label==="LỜI CHÚC" ? Math.max(9,s*.021) : Math.max(11,s*.027);
+      ctx.font=`900 ${fontSize}px system-ui, sans-serif`;
+      ctx.textAlign="center";ctx.textBaseline="middle";
+      ctx.lineWidth=3;ctx.strokeStyle="rgba(255,255,255,.75)";
+      ctx.strokeText(label,0,0);
+      ctx.fillStyle="#782018";ctx.fillText(label,0,0);
+      ctx.restore();
+    }
+    // center medallion
+    ctx.beginPath();ctx.arc(c,c,s*.105,0,Math.PI*2);
+    ctx.fillStyle="#a91525";ctx.fill();ctx.lineWidth=s*.012;ctx.strokeStyle="#f9d77b";ctx.stroke();
+    ctx.beginPath();ctx.arc(c,c,s*.082,0,Math.PI*2);
+    ctx.strokeStyle="#ffe8a3";ctx.lineWidth=1.5;ctx.stroke();
+    ctx.fillStyle="#fff0c2";ctx.font=`900 ${s*.036}px system-ui`;
+    ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("LỘC",c,c);
+    // small Tết blossoms around the hub
+    for(let i=0;i<8;i++){
+      const a=i*Math.PI/4;
+      flower(c+Math.cos(a)*s*.145,c+Math.sin(a)*s*.145,s*.026,.98);
+    }
+    // tiny decorative dots on the rim
+    for(let i=0;i<46;i++){
+      const a=i*Math.PI*2/46;
+      ctx.beginPath();ctx.arc(c+Math.cos(a)*radius,s ? c+Math.sin(a)*radius : c, s*.004,0,Math.PI*2);
+      ctx.fillStyle="#fff0b8";ctx.fill();
+    }
+  }
+  function spin() {
+    if(spinning) return;
+    spinning=true;
+    resultText.textContent="Đang quay...";
+    resultSub.textContent="Chúc bạn gặp nhiều may mắn 🌸";
+    const winner=Math.floor(Math.random()*count);
+    // segment center at the top pointer after rotation
+    const targetMod = (Math.PI*2 - (winner*arc + arc/2)) % (Math.PI*2);
+    const currentMod = ((rotation%(Math.PI*2))+(Math.PI*2))%(Math.PI*2);
+    let delta=(targetMod-currentMod+Math.PI*2)%(Math.PI*2);
+    delta += (6 + Math.floor(Math.random()*3))*Math.PI*2;
+    const from=rotation, to=rotation+delta, duration=4700, start=performance.now();
+    function frame(now){
+      const t=Math.min(1,(now-start)/duration);
+      const ease=1-Math.pow(1-t,4);
+      rotation=from+(to-from)*ease; draw();
+      if(t<1) requestAnimationFrame(frame);
+      else {
+        rotation=to%(Math.PI*2);draw();spinning=false;
+        const prize=prizes[winner];
+        resultText.textContent=prize==="LỜI CHÚC" ? "LỜI CHÚC MAY MẮN" : "LÌ XÌ "+prize;
+        resultSub.textContent=prize==="LỜI CHÚC" ? "Chúc bạn bình an, vui vẻ và vạn sự như ý!" : "Chúc mừng bạn đã nhận được lộc may mắn!";
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  tap.addEventListener("click",spin);
+  tap.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();spin();}});
+  window.addEventListener("resize",resize);
+  resize();
+
+  if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
+    window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+  }
+})();
+</script>
+</body>
+</html>
