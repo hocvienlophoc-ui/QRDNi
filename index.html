@@ -57,12 +57,15 @@
     #resultText { font-size:clamp(23px,6vw,32px); font-weight:900; color:#a31524; margin-top:3px; }
     #resultSub { font-size:12px; color:#8c5945; margin-top:3px; }
     .footer { color:#ffe7b0; font-size:11px; margin:11px 0 0; opacity:.9; }
+    .copyright { color:#ffe7b0; font-size:11px; margin:5px 0 0; opacity:.9; letter-spacing:.3px; }
+    #fireworks { position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:20; }
     .wheel-card:focus-visible { outline:4px solid #fff2bd; outline-offset:5px; }
     @media (max-width:390px) { .wheel-card{width:min(96vw,520px)} .heading p{font-size:12px} }
     @media (prefers-reduced-motion: reduce) { * { scroll-behavior:auto !important; } }
   </style>
 </head>
 <body>
+  <canvas id="fireworks" aria-hidden="true"></canvas>
   <main class="app">
     <header class="heading">
       <h1>🌸 Lì xì may mắn 🌸</h1>
@@ -81,6 +84,7 @@
       <div id="resultSub">Mỗi vòng quay là một niềm vui 🌼</div>
     </section>
     <p class="footer">Trò chơi giải trí · Phần thưởng chỉ mang tính mô phỏng</p>
+    <p class="copyright">© QR – Tư tò tò - 2027</p>
   </main>
 
 <script>
@@ -95,8 +99,115 @@
   const tap = document.getElementById("wheelTap");
   const resultText = document.getElementById("resultText");
   const resultSub = document.getElementById("resultSub");
+  const fireworksCanvas = document.getElementById("fireworks");
+  const fireworksCtx = fireworksCanvas.getContext("2d");
   const count = prizes.length, arc = Math.PI * 2 / count;
+  const eligibleWinners = prizes.map((prize, index) => ({prize, index}))
+    .filter(item => item.prize !== "500K");
   let rotation = 0, spinning = false, dpr = 1, size = 600;
+  let audioContext = null, tickTimer = null, particles = [], fireworksFrame = 0;
+
+  function getAudioContext() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    if (!audioContext) audioContext = new AudioCtx();
+    if (audioContext.state === "suspended") audioContext.resume();
+    return audioContext;
+  }
+
+  function playTone(frequency, duration, type="sine", volume=.045, delay=0) {
+    const ac = getAudioContext();
+    if (!ac) return;
+    const startAt = ac.currentTime + delay;
+    const oscillator = ac.createOscillator();
+    const gain = ac.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, startAt);
+    gain.gain.setValueAtTime(.0001, startAt);
+    gain.gain.exponentialRampToValueAtTime(volume, startAt + .012);
+    gain.gain.exponentialRampToValueAtTime(.0001, startAt + duration);
+    oscillator.connect(gain);
+    gain.connect(ac.destination);
+    oscillator.start(startAt);
+    oscillator.stop(startAt + duration + .02);
+  }
+
+  function startSpinSound() {
+    getAudioContext();
+    let tick = 0;
+    tickTimer = window.setInterval(() => {
+      if (!spinning) return;
+      playTone(760 - Math.min(tick, 18) * 12, .045, "square", .018);
+      tick++;
+    }, 115);
+  }
+
+  function stopSpinSound() {
+    if (tickTimer !== null) {
+      clearInterval(tickTimer);
+      tickTimer = null;
+    }
+  }
+
+  function playWinSound() {
+    // A short, bright three-note celebratory chime, synthesized locally.
+    [659.25, 783.99, 987.77, 1318.51].forEach((frequency, i) => {
+      playTone(frequency, .42, "sine", .065, i * .105);
+    });
+  }
+
+  function resizeFireworks() {
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    fireworksCanvas.width = Math.round(window.innerWidth * ratio);
+    fireworksCanvas.height = Math.round(window.innerHeight * ratio);
+    fireworksCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  }
+
+  function burstFireworks() {
+    const width = window.innerWidth, height = window.innerHeight;
+    const colors = ["#fff2a8", "#ffdf68", "#ff7188", "#8be9ff", "#ffffff", "#c8ff9e"];
+    for (let burst = 0; burst < 5; burst++) {
+      const x = width * (.16 + Math.random() * .68);
+      const y = height * (.16 + Math.random() * .48);
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      const amount = 42;
+      for (let i = 0; i < amount; i++) {
+        const angle = Math.PI * 2 * i / amount + Math.random() * .12;
+        const speed = 1.4 + Math.random() * 4.2;
+        particles.push({
+          x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+          life: 48 + Math.random() * 24, maxLife: 72,
+          size: 1.5 + Math.random() * 2.3, color
+        });
+      }
+    }
+    if (!fireworksFrame) animateFireworks();
+  }
+
+  function animateFireworks() {
+    fireworksFrame = requestAnimationFrame(() => {
+      fireworksCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      particles = particles.filter(p => p.life > 0);
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += .045;
+        p.vx *= .99;
+        p.life--;
+        fireworksCtx.globalAlpha = Math.max(0, p.life / p.maxLife);
+        fireworksCtx.fillStyle = p.color;
+        fireworksCtx.beginPath();
+        fireworksCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        fireworksCtx.fill();
+      }
+      fireworksCtx.globalAlpha = 1;
+      if (particles.length) animateFireworks();
+      else {
+        fireworksCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+        fireworksFrame = 0;
+      }
+    });
+  }
 
   function resize() {
     const rect = tap.getBoundingClientRect();
@@ -169,9 +280,10 @@
   function spin() {
     if(spinning) return;
     spinning=true;
+    startSpinSound();
     resultText.textContent="Đang quay...";
     resultSub.textContent="Chúc bạn gặp nhiều may mắn 🌸";
-    const winner=Math.floor(Math.random()*count);
+    const winner=eligibleWinners[Math.floor(Math.random()*eligibleWinners.length)].index;
     // segment center at the top pointer after rotation
     const targetMod = (Math.PI*2 - (winner*arc + arc/2)) % (Math.PI*2);
     const currentMod = ((rotation%(Math.PI*2))+(Math.PI*2))%(Math.PI*2);
@@ -185,6 +297,9 @@
       if(t<1) requestAnimationFrame(frame);
       else {
         rotation=to%(Math.PI*2);draw();spinning=false;
+        stopSpinSound();
+        playWinSound();
+        burstFireworks();
         const prize=prizes[winner];
         resultText.textContent=prize==="LỜI CHÚC" ? "LỜI CHÚC MAY MẮN" : "LÌ XÌ "+prize;
         resultSub.textContent=prize==="LỜI CHÚC" ? "Chúc bạn bình an, vui vẻ và vạn sự như ý!" : "Chúc mừng bạn đã nhận được lộc may mắn!";
@@ -195,6 +310,8 @@
   tap.addEventListener("click",spin);
   tap.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();spin();}});
   window.addEventListener("resize",resize);
+  window.addEventListener("resize",resizeFireworks);
+  resizeFireworks();
   resize();
 
   if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
